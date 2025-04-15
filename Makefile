@@ -1,14 +1,36 @@
-.PHONY: format imports tidy vet staticcheck lint build precommit test
+.PHONY: install-goimport install-staticcheck install-ginkgo install-devtools \
+	format imports tidy vet staticcheck lint build precommit test
+
+
+install-goimport:
+	@if ! command -v goimports &> /dev/null; then \
+		echo "goimports not found, installing..."; \
+		go install golang.org/x/tools/cmd/goimports@v0.24.0; \
+	fi
+
+install-staticcheck:
+	@if ! command -v staticcheck &> /dev/null; then \
+		echo "staticcheck not found, installing..."; \
+		go install honnef.co/go/tools/cmd/staticcheck@v0.4.7; \
+	fi
+
+install-ginkgo:
+	@if ! command -v ginkgo &> /dev/null; then \
+		echo "ginkgo not found, installing..."; \
+		go install github.com/onsi/ginkgo/v2/ginkgo@v2.8.1; \
+	fi
+
+install-devtools: install-goimport install-staticcheck install-ginkgo
 
 
 format:
 	@echo "Formatting code..."
-	gofmt -s -w ${GOFILES_NOT_NODE}
+	gofmt -s -w zstd_compression/*.go
 
 
 imports: install-goimport
 	@echo "Running goimports..."
-	goimports -l -w ${GOFILES_NOT_NODE}
+	goimports -l -w zstd_compression/*.go
 
 
 tidy:
