@@ -5,7 +5,7 @@ go 1.19
 require (
 	github.com/google/uuid v1.6.0
 	github.com/klauspost/compress v1.17.11
-	github.com/momentohq/client-sdk-go v1.35.0
+	github.com/momentohq/client-sdk-go v1.36.0
 	github.com/onsi/ginkgo/v2 v2.8.1
 	github.com/onsi/gomega v1.26.0
 )

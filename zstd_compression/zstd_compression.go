@@ -8,6 +8,7 @@ import (
 	"github.com/momentohq/client-sdk-go/config/compression"
 	"github.com/momentohq/client-sdk-go/config/logger"
 	"github.com/momentohq/client-sdk-go/config/middleware"
+	"github.com/momentohq/client-sdk-go/config/middleware/impl"
 )
 
 // ZstdCompressorFactory implements the CompressionStrategyFactory interface.
@@ -88,10 +89,10 @@ type ZstdCompressionMiddlewareProps struct {
 //		CompressionLevel: zstd_compression.CompressionLevelFastest,
 //	})
 func NewZstdCompressionMiddleware(props ZstdCompressionMiddlewareProps) middleware.Middleware {
-	compressionMiddlewareProps := compression.CompressionMiddlewareProps{
+	compressionMiddlewareProps := impl.CompressionMiddlewareProps{
 		CompressorFactory:        ZstdCompressorFactory{},
 		CompressionStrategyProps: props.CompressionStrategyProps,
 		IncludeTypes:             props.IncludeTypes,
 	}
-	return compression.NewCompressionMiddleware(compressionMiddlewareProps)
+	return impl.NewCompressionMiddleware(compressionMiddlewareProps)
 }
