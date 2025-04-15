@@ -1,8 +1,6 @@
 module github.com/momentohq/client-sdk-go-compression-zstd
 
-go 1.21
-
-toolchain go1.23.6
+go 1.19
 
 require (
 	github.com/google/uuid v1.6.0
