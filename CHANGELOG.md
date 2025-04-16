@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.1](https://github.com/momentohq/client-sdk-go-compression-zstd/compare/v0.1.0...v0.1.1) (2025-04-16)
+
+
+### Bug Fixes
+
+* upgrade sdk version and add json object test ([#5](https://github.com/momentohq/client-sdk-go-compression-zstd/issues/5)) ([cdab19c](https://github.com/momentohq/client-sdk-go-compression-zstd/commit/cdab19cf483fe458261f4e65a69424649a63a919))
+
 ## 0.1.0 (2025-04-15)
 
 
