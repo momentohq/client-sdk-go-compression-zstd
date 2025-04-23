@@ -13,7 +13,6 @@ import (
 // ZstdTestCompressorFactory is a wrapper around the ZstdCompressorFactory that allows us to test the
 // zstd compression middleware more thoroughly to confirm compression is working as expected.
 type ZstdTestCompressorFactory struct {
-	testHelper              zstdTestCompressor
 	CompressedDataChannel   chan int // receive data size in bytes
 	DecompressedDataChannel chan int // receive data size in bytes
 }
@@ -26,10 +25,6 @@ func (f ZstdTestCompressorFactory) NewCompressionStrategy(props compression.Comp
 		DecompressedDataChannel: f.DecompressedDataChannel,
 	}
 	return compressionStrategy
-}
-
-func (f ZstdTestCompressorFactory) GetTestHelper() zstdTestCompressor {
-	return f.testHelper
 }
 
 type zstdTestCompressor struct {
