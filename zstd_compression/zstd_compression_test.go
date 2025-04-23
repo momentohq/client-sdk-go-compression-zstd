@@ -7,13 +7,12 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/momentohq/client-sdk-go-compression-zstd/zstd_compression"
+	"github.com/momentohq/client-sdk-go-compression-zstd/zstd_compression/test_helpers"
 	"github.com/momentohq/client-sdk-go/auth"
 	"github.com/momentohq/client-sdk-go/config"
 
 	"github.com/momentohq/client-sdk-go/config/compression"
 	"github.com/momentohq/client-sdk-go/config/logger/momento_default_logger"
-	"github.com/momentohq/client-sdk-go/config/middleware"
 	. "github.com/momentohq/client-sdk-go/momento"
 	"github.com/momentohq/client-sdk-go/responses"
 	. "github.com/onsi/ginkgo/v2"
@@ -55,6 +54,16 @@ func getCompressableString() string {
 	return fmt.Sprintf("%s %s", longString, uuid.NewString())
 }
 
+func verifyCompressionFromChannels(compressedDataChannel chan int, decompressedDataChannel chan int, originalSize int) {
+	compressedSize, ok := <-compressedDataChannel
+	Expect(ok).To(BeTrue())
+	Expect(compressedSize).To(BeNumerically(">", 0))
+	Expect(compressedSize).To(BeNumerically("<", originalSize))
+	decompressedSize, ok := <-decompressedDataChannel
+	Expect(ok).To(BeTrue())
+	Expect(decompressedSize).To(Equal(originalSize))
+}
+
 var _ = Describe("zstd-compression-middleware", Label("cache-service"), func() {
 	BeforeEach(func() {
 		testCtx = context.Background()
@@ -70,16 +79,18 @@ var _ = Describe("zstd-compression-middleware", Label("cache-service"), func() {
 	// and no IncludeTypes are specified to narrow down the types of requests that should be compressed.
 	Describe("when IncludeTypes is not specified", func() {
 		It("should successfully set and get a value", func() {
-			createCacheClient(config.LaptopLatest().WithMiddleware([]middleware.Middleware{
-				zstd_compression.NewZstdCompressionMiddleware(zstd_compression.ZstdCompressionMiddlewareProps{
-					CompressionStrategyProps: compression.CompressionStrategyProps{
-						CompressionLevel: compression.CompressionLevelDefault,
-						Logger:           momento_default_logger.NewDefaultMomentoLoggerFactory(momento_default_logger.TRACE).GetLogger("zstd-test"),
-					},
-				}),
-			}))
+			compressedDataChannel := make(chan int, 1)
+			decompressedDataChannel := make(chan int, 1)
+			middleware := test_helpers.NewZstdCompressionTestMiddleware(test_helpers.ZstdCompressionTestMiddlewareProps{
+				CompressionLevel:        compression.CompressionLevelDefault,
+				Logger:                  momento_default_logger.NewDefaultMomentoLoggerFactory(momento_default_logger.TRACE).GetLogger("zstd-test"),
+				CompressedDataChannel:   compressedDataChannel,
+				DecompressedDataChannel: decompressedDataChannel,
+			})
+			createCacheClient(config.LaptopLatest().AddMiddleware(middleware))
 
 			value := getCompressableString()
+			originalSize := len(value)
 			_, err := cacheClient.Set(testCtx, &SetRequest{
 				CacheName: cacheName,
 				Key:       String("key"),
@@ -94,19 +105,22 @@ var _ = Describe("zstd-compression-middleware", Label("cache-service"), func() {
 			Expect(err).To(BeNil())
 			Expect(resp).To(BeAssignableToTypeOf(&responses.GetHit{}))
 			Expect(resp.(*responses.GetHit).ValueString()).To(Equal(value))
+			verifyCompressionFromChannels(compressedDataChannel, decompressedDataChannel, originalSize)
 		})
 
 		It("should successfully setIf and get a value", func() {
-			createCacheClient(config.LaptopLatest().WithMiddleware([]middleware.Middleware{
-				zstd_compression.NewZstdCompressionMiddleware(zstd_compression.ZstdCompressionMiddlewareProps{
-					CompressionStrategyProps: compression.CompressionStrategyProps{
-						CompressionLevel: compression.CompressionLevelDefault,
-						Logger:           momento_default_logger.NewDefaultMomentoLoggerFactory(momento_default_logger.TRACE).GetLogger("zstd-test"),
-					},
-				}),
-			}))
+			compressedDataChannel := make(chan int, 1)
+			decompressedDataChannel := make(chan int, 1)
+			middleware := test_helpers.NewZstdCompressionTestMiddleware(test_helpers.ZstdCompressionTestMiddlewareProps{
+				CompressionLevel:        compression.CompressionLevelDefault,
+				Logger:                  momento_default_logger.NewDefaultMomentoLoggerFactory(momento_default_logger.TRACE).GetLogger("zstd-test"),
+				CompressedDataChannel:   compressedDataChannel,
+				DecompressedDataChannel: decompressedDataChannel,
+			})
+			createCacheClient(config.LaptopLatest().AddMiddleware(middleware))
 
 			setIfAbsentValue := getCompressableString()
+			originalSize := len(setIfAbsentValue)
 			_, err := cacheClient.SetIfAbsent(testCtx, &SetIfAbsentRequest{
 				CacheName: cacheName,
 				Key:       String("key"),
@@ -121,8 +135,10 @@ var _ = Describe("zstd-compression-middleware", Label("cache-service"), func() {
 			Expect(err).To(BeNil())
 			Expect(resp).To(BeAssignableToTypeOf(&responses.GetHit{}))
 			Expect(resp.(*responses.GetHit).ValueString()).To(Equal(setIfAbsentValue))
+			verifyCompressionFromChannels(compressedDataChannel, decompressedDataChannel, originalSize)
 
 			setIfPresentValue := getCompressableString()
+			originalSize = len(setIfPresentValue)
 			_, err = cacheClient.SetIfPresentAndNotEqual(testCtx, &SetIfPresentAndNotEqualRequest{
 				CacheName: cacheName,
 				Key:       String("key"),
@@ -138,19 +154,22 @@ var _ = Describe("zstd-compression-middleware", Label("cache-service"), func() {
 			Expect(err).To(BeNil())
 			Expect(resp).To(BeAssignableToTypeOf(&responses.GetHit{}))
 			Expect(resp.(*responses.GetHit).ValueString()).To(Equal(setIfPresentValue))
+			verifyCompressionFromChannels(compressedDataChannel, decompressedDataChannel, originalSize)
 		})
 
 		It("should successfully setWithHash and getWithHash", func() {
-			createCacheClient(config.LaptopLatest().WithMiddleware([]middleware.Middleware{
-				zstd_compression.NewZstdCompressionMiddleware(zstd_compression.ZstdCompressionMiddlewareProps{
-					CompressionStrategyProps: compression.CompressionStrategyProps{
-						CompressionLevel: compression.CompressionLevelDefault,
-						Logger:           momento_default_logger.NewDefaultMomentoLoggerFactory(momento_default_logger.TRACE).GetLogger("zstd-test"),
-					},
-				}),
-			}))
+			compressedDataChannel := make(chan int, 1)
+			decompressedDataChannel := make(chan int, 1)
+			middleware := test_helpers.NewZstdCompressionTestMiddleware(test_helpers.ZstdCompressionTestMiddlewareProps{
+				CompressionLevel:        compression.CompressionLevelDefault,
+				Logger:                  momento_default_logger.NewDefaultMomentoLoggerFactory(momento_default_logger.TRACE).GetLogger("zstd-test"),
+				CompressedDataChannel:   compressedDataChannel,
+				DecompressedDataChannel: decompressedDataChannel,
+			})
+			createCacheClient(config.LaptopLatest().AddMiddleware(middleware))
 
 			value := getCompressableString()
+			originalSize := len(value)
 			setResp, err := cacheClient.SetWithHash(testCtx, &SetWithHashRequest{
 				CacheName: cacheName,
 				Key:       String("key"),
@@ -169,19 +188,22 @@ var _ = Describe("zstd-compression-middleware", Label("cache-service"), func() {
 			Expect(resp).To(BeAssignableToTypeOf(&responses.GetWithHashHit{}))
 			Expect(resp.(*responses.GetWithHashHit).ValueString()).To(Equal(value))
 			Expect(resp.(*responses.GetWithHashHit).HashByte()).To(Equal(hash))
+			verifyCompressionFromChannels(compressedDataChannel, decompressedDataChannel, originalSize)
 		})
 
 		It("should successfully setIfHash and getWithHash", func() {
-			createCacheClient(config.LaptopLatest().WithMiddleware([]middleware.Middleware{
-				zstd_compression.NewZstdCompressionMiddleware(zstd_compression.ZstdCompressionMiddlewareProps{
-					CompressionStrategyProps: compression.CompressionStrategyProps{
-						CompressionLevel: compression.CompressionLevelDefault,
-						Logger:           momento_default_logger.NewDefaultMomentoLoggerFactory(momento_default_logger.TRACE).GetLogger("zstd-test"),
-					},
-				}),
-			}))
+			compressedDataChannel := make(chan int, 1)
+			decompressedDataChannel := make(chan int, 1)
+			middleware := test_helpers.NewZstdCompressionTestMiddleware(test_helpers.ZstdCompressionTestMiddlewareProps{
+				CompressionLevel:        compression.CompressionLevelDefault,
+				Logger:                  momento_default_logger.NewDefaultMomentoLoggerFactory(momento_default_logger.TRACE).GetLogger("zstd-test"),
+				CompressedDataChannel:   compressedDataChannel,
+				DecompressedDataChannel: decompressedDataChannel,
+			})
+			createCacheClient(config.LaptopLatest().AddMiddleware(middleware))
 
 			setIfAbsentValue := getCompressableString()
+			originalSize := len(setIfAbsentValue)
 			setAbsentResp, err := cacheClient.SetIfAbsentOrHashEqual(testCtx, &SetIfAbsentOrHashEqualRequest{
 				CacheName: cacheName,
 				Key:       String("key"),
@@ -201,8 +223,10 @@ var _ = Describe("zstd-compression-middleware", Label("cache-service"), func() {
 			Expect(resp).To(BeAssignableToTypeOf(&responses.GetWithHashHit{}))
 			Expect(resp.(*responses.GetWithHashHit).ValueString()).To(Equal(setIfAbsentValue))
 			Expect(resp.(*responses.GetWithHashHit).HashByte()).To(Equal(hash))
+			verifyCompressionFromChannels(compressedDataChannel, decompressedDataChannel, originalSize)
 
 			setIfPresentValue := getCompressableString()
+			originalSize = len(setIfPresentValue)
 			setPresentResp, err := cacheClient.SetIfPresentAndHashEqual(testCtx, &SetIfPresentAndHashEqualRequest{
 				CacheName: cacheName,
 				Key:       String("key"),
@@ -222,6 +246,7 @@ var _ = Describe("zstd-compression-middleware", Label("cache-service"), func() {
 			Expect(resp).To(BeAssignableToTypeOf(&responses.GetWithHashHit{}))
 			Expect(resp.(*responses.GetWithHashHit).ValueString()).To(Equal(setIfPresentValue))
 			Expect(resp.(*responses.GetWithHashHit).HashByte()).To(Equal(hash))
+			verifyCompressionFromChannels(compressedDataChannel, decompressedDataChannel, originalSize)
 		})
 
 	})
@@ -230,18 +255,19 @@ var _ = Describe("zstd-compression-middleware", Label("cache-service"), func() {
 	// IncludeTypes is specified to narrow down the types of requests that should be compressed.
 	Describe("when IncludeTypes is specified", func() {
 		It("should successfully set and get a value without compression when not included", func() {
-			createCacheClient(config.LaptopLatest().WithMiddleware([]middleware.Middleware{
-				zstd_compression.NewZstdCompressionMiddleware(zstd_compression.ZstdCompressionMiddlewareProps{
-					CompressionStrategyProps: compression.CompressionStrategyProps{
-						CompressionLevel: compression.CompressionLevelDefault,
-						Logger:           momento_default_logger.NewDefaultMomentoLoggerFactory(momento_default_logger.TRACE).GetLogger("zstd-test"),
-					},
-					IncludeTypes: []interface{}{
-						SetWithHashRequest{},
-						GetWithHashRequest{},
-					},
-				}),
-			}))
+			compressedDataChannel := make(chan int, 1)
+			decompressedDataChannel := make(chan int, 1)
+			middleware := test_helpers.NewZstdCompressionTestMiddleware(test_helpers.ZstdCompressionTestMiddlewareProps{
+				CompressionLevel:        compression.CompressionLevelDefault,
+				Logger:                  momento_default_logger.NewDefaultMomentoLoggerFactory(momento_default_logger.TRACE).GetLogger("zstd-test"),
+				CompressedDataChannel:   compressedDataChannel,
+				DecompressedDataChannel: decompressedDataChannel,
+				IncludeTypes: []interface{}{
+					SetWithHashRequest{},
+					GetWithHashRequest{},
+				},
+			})
+			createCacheClient(config.LaptopLatest().AddMiddleware(middleware))
 
 			// Should not see Get or Set mentioned in compression logs
 
@@ -265,6 +291,7 @@ var _ = Describe("zstd-compression-middleware", Label("cache-service"), func() {
 			// Should see SetWithHash and GetWithHash mentioned in compression logs
 
 			hashKey := getCompressableString()
+			originalSize := len(value)
 			setResp, err := cacheClient.SetWithHash(testCtx, &SetWithHashRequest{
 				CacheName: cacheName,
 				Key:       String(hashKey),
@@ -283,20 +310,18 @@ var _ = Describe("zstd-compression-middleware", Label("cache-service"), func() {
 			Expect(getResp).To(BeAssignableToTypeOf(&responses.GetWithHashHit{}))
 			Expect(getResp.(*responses.GetWithHashHit).ValueString()).To(Equal(value))
 			Expect(getResp.(*responses.GetWithHashHit).HashByte()).To(Equal(hash))
+			verifyCompressionFromChannels(compressedDataChannel, decompressedDataChannel, originalSize)
 		})
 
 		It("should not decompress when response was not compressed", func() {
-			createCacheClient(config.LaptopLatest().WithMiddleware([]middleware.Middleware{
-				zstd_compression.NewZstdCompressionMiddleware(zstd_compression.ZstdCompressionMiddlewareProps{
-					CompressionStrategyProps: compression.CompressionStrategyProps{
-						CompressionLevel: compression.CompressionLevelDefault,
-						Logger:           momento_default_logger.NewDefaultMomentoLoggerFactory(momento_default_logger.TRACE).GetLogger("zstd-test"),
-					},
-					IncludeTypes: []interface{}{
-						GetRequest{}, // try to decompress without any compression
-					},
-				}),
-			}))
+			middleware := test_helpers.NewZstdCompressionTestMiddleware(test_helpers.ZstdCompressionTestMiddlewareProps{
+				CompressionLevel: compression.CompressionLevelDefault,
+				Logger:           momento_default_logger.NewDefaultMomentoLoggerFactory(momento_default_logger.TRACE).GetLogger("zstd-test"),
+				IncludeTypes: []interface{}{
+					GetRequest{}, // try to decompress without any compression
+				},
+			})
+			createCacheClient(config.LaptopLatest().AddMiddleware(middleware))
 
 			value := "some-value"
 			_, err := cacheClient.Set(testCtx, &SetRequest{
@@ -320,32 +345,37 @@ var _ = Describe("zstd-compression-middleware", Label("cache-service"), func() {
 
 	Describe("when using json data", func() {
 		It("should successfully set and get and compress a json object", func() {
-			createCacheClient(config.LaptopLatest().WithMiddleware([]middleware.Middleware{
-				zstd_compression.NewZstdCompressionMiddleware(zstd_compression.ZstdCompressionMiddlewareProps{
-					CompressionStrategyProps: compression.CompressionStrategyProps{
-						CompressionLevel: compression.CompressionLevelDefault,
-						Logger:           momento_default_logger.NewDefaultMomentoLoggerFactory(momento_default_logger.TRACE).GetLogger("zstd-test"),
-					},
-				}),
-			}))
+			compressedDataChannel := make(chan int, 1)
+			decompressedDataChannel := make(chan int, 1)
+			middleware := test_helpers.NewZstdCompressionTestMiddleware(test_helpers.ZstdCompressionTestMiddlewareProps{
+				CompressionLevel:        compression.CompressionLevelDefault,
+				Logger:                  momento_default_logger.NewDefaultMomentoLoggerFactory(momento_default_logger.TRACE).GetLogger("zstd-test"),
+				CompressedDataChannel:   compressedDataChannel,
+				DecompressedDataChannel: decompressedDataChannel,
+			})
+			createCacheClient(config.LaptopLatest().AddMiddleware(middleware))
 
 			// User represents a sample JSON object
 			type User struct {
-				ID    int      `json:"id"`
-				Name  string   `json:"name"`
-				Email string   `json:"email"`
-				Tags  []string `json:"tags"`
+				ID          int      `json:"id"`
+				Name        string   `json:"name"`
+				Email       string   `json:"email"`
+				Tags        []string `json:"tags"`
+				Description string   `json:"description"`
 			}
 
 			sampleUser := User{
-				ID:    1,
-				Name:  "John Doe",
-				Email: "john.doe@example.com",
-				Tags:  []string{"tag1", "tag2"},
+				ID:          1,
+				Name:        "John Doe",
+				Email:       "john.doe@example.com",
+				Tags:        []string{"tag1", "tag2"},
+				Description: getCompressableString(),
 			}
 
 			sampleUserJSON, err := json.Marshal(sampleUser)
 			Expect(err).To(BeNil())
+
+			originalSize := len(sampleUserJSON)
 
 			_, err = cacheClient.Set(testCtx, &SetRequest{
 				CacheName: cacheName,
@@ -364,6 +394,7 @@ var _ = Describe("zstd-compression-middleware", Label("cache-service"), func() {
 			jsonErr := json.Unmarshal(resp.(*responses.GetHit).ValueByte(), &retrievedUser)
 			Expect(jsonErr).To(BeNil())
 			Expect(retrievedUser).To(Equal(sampleUser))
+			verifyCompressionFromChannels(compressedDataChannel, decompressedDataChannel, originalSize)
 		})
 	})
 })
