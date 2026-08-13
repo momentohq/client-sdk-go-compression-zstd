@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.1.2](https://github.com/momentohq/client-sdk-go-compression-zstd/compare/v0.1.1...v0.1.2) (2026-08-13)
+
+
+### Miscellaneous
+
+* improved compression tests ([#7](https://github.com/momentohq/client-sdk-go-compression-zstd/issues/7)) ([b9af118](https://github.com/momentohq/client-sdk-go-compression-zstd/commit/b9af1182dbbe54c557182a8c8a63aabeaf545ea9))
+* retire the machine-user release token ([#9](https://github.com/momentohq/client-sdk-go-compression-zstd/issues/9)) ([e92621c](https://github.com/momentohq/client-sdk-go-compression-zstd/commit/e92621c066efcb520b0e80129ff154c64b513517))
+
 ## [0.1.1](https://github.com/momentohq/client-sdk-go-compression-zstd/compare/v0.1.0...v0.1.1) (2025-04-16)
 
 
