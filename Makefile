@@ -11,7 +11,7 @@ install-goimport:
 install-staticcheck:
 	@if ! command -v staticcheck &> /dev/null; then \
 		echo "staticcheck not found, installing..."; \
-		go install honnef.co/go/tools/cmd/staticcheck@v0.4.7; \
+		go install honnef.co/go/tools/cmd/staticcheck@v0.6.1; \
 	fi
 
 install-ginkgo:
